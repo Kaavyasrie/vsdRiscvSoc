@@ -1,0 +1,234 @@
+Task 1: Install & Sanity-Check the Toolchain
+Question: I have downloaded riscv-toolchain-rv32imac-x86_64-ubuntu.tar.gz.
+How exactly do I unpack it, add it to PATH, and confirm the gcc, objdump, and gdb
+binaries work?
+Steps:
+1. Unpack the Archive:
+1 tar -xzf riscv-toolchain-rv32imac-x86_64-ubuntu.tar.gz -C $HOME/riscv
+This extracts the toolchain to ~/riscv.
+2. Add to PATH: Add the toolchain to your PATH by appending to ~/.bashrc:
+1 export PATH=$HOME/riscv/bin:$PATH
+Apply changes:
+1 source ~/.bashrc
+3. Verify Binaries: Check if the binaries work:
+1 riscv32-unknown-elf-gcc --version
+2 riscv32-unknown-elf-objdump --version
+3 riscv32-unknown-elf-gdb --version
+Each command should display version information, confirming the binaries are functional.
+Task 2: Compile “Hello, RISC-V”
+Question: Show me a minimal C ‘hello world’ that cross-compiles for RV32IMC and the
+exact gcc flags to produce an ELF.
+Method:
+1. C Program (hello.c):
+1 #include <stdio.h>
+2 int main() {
+3 printf("Hello, RISC-V!\n");
+14 return 0;
+5 }
+2. Compile Command:
+1 riscv32-unknown-elf-gcc -march=rv32imc -mabi=ilp32 -o hello.elf hello.c
+3. Verify ELF:
+1 file hello.elf
+Expected output: hello.elf: ELF 32-bit LSB executable, RISC-V, ...
+Task 3: From C to Assembly
+Question: How do I generate the .s file and explain the prologue/epilogue of the main
+function?
+Method:
+1. Generate Assembly (hello.s):
+1 riscv32-unknown-elf-gcc -S -O0 -march=rv32imc -mabi=ilp32 -o hello.s
+hello.c
+2. Prologue/Epilogue Explanation: Example assembly for main:
+1 main:
+2 addi sp,sp,-16 # Allocate stack space
+3 sw ra,12(sp) # Save return address
+4 sw s0,8(sp) # Save frame pointer
+5 addi s0,sp,16 # Set frame pointer
+6 # ... function body ...
+7 lw ra,12(sp) # Restore return address
+8 lw s0,8(sp) # Restore frame pointer
+9 addi sp,sp,16 # Deallocate stack
+10 ret # Return
+Prologue: Allocates stack space, saves ra (return address) and s0 (frame pointer).
+Epilogue: Restores ra and s0, deallocates stack, and returns.
+Task 4: Hex Dump & Disassembly
+Question: Show me how to turn my ELF into a raw hex and to disassemble it with
+objdump. What do each column mean?
+Method:
+1. Generate Hex:
+1 riscv32-unknown-elf-objcopy -O ihex hello.elf hello.hex
+22. Disassemble ELF:
+1 riscv32-unknown-elf-objdump -d hello.elf > hello.dump
+3. Disassembly Columns: Example output:
+1 80000000 <main>:
+2 80000000: 1101 addi sp,sp,-16
+• Address (80000000): Memory address of the instruction.
+• Opcode (1101): Machine code in hex.
+• Mnemonic (addi sp,sp,-16): Human-readable instruction.
+Task 5: ABI & Register Cheat-Sheet
+Question: List all 32 RV32 integer registers with their ABI names and typical callingconvention roles.
+Answer:
+Reg No ABI Name Role / Usage
+x0 zero Always zero (hardwired)
+x1 ra Return address
+x2 sp Stack pointer
+x3 gp Global pointer
+x4 tp Thread pointer
+x5–x7 t0–t2 Temporary registers
+x8 s0/fp Saved register / Frame pointer
+x9 s1 Saved register 1
+x10–x11 a0–a1 Arguments 0–1 / Return values
+x12–x17 a2–a7 Arguments 2–7
+x18–x27 s2–s11 Saved registers 2–11
+x28–x31 t3–t6 Temporary registers 3–6
+Calling Convention: a0–a7 and t0–t6 are caller-saved; s0–s11 are callee-saved.
+Task 6: Stepping with GDB
+Question: How do I start riscv32-unknown-elf-gdb on my ELF, set a breakpoint at
+main, step, and inspect registers?
+Method:
+1. Start GDB:
+1 riscv32-unknown-elf-gdb hello.elf
+2 (gdb) target sim
+3 (gdb) load
+4 (gdb) break main
+35 (gdb) run
+6 (gdb) step
+7 (gdb) info registers
+2. Example Output: Breakpoint at main, step through instructions, and inspect registers like a0.
+Task 7: Running Under an Emulator
+Question: Give me spike or QEMU commands to boot my bare-metal ELF and print
+to the ‘UART’ console.
+Method:
+1. QEMU: Babel
+1 qemu-system-riscv32 -nographic -machine virt -bios none -kernel hello.elf
+2. Spike:
+1 spike --isa=rv32imc pk hello.elf
+3. Expected UART output in terminal.
+Task 8: Exploring GCC Optimisation
+Question: Compile the same file with -O0 vs -O2. What differences appear in the
+assembly and why?
+Method:
+1. Compile with -O0:
+1 riscv32-unknown-elf-gcc -O0 -march=rv32imc -mabi=ilp32 -S -o hello_O0.s
+hello.c
+2. Compile with -O2:
+1 riscv32-unknown-elf-gcc -O2 -march=rv32imc -mabi=ilp32 -S -o hello_O2.s
+hello.c
+3. Differences:
+• -O0: Larger stack frames, verbose instructions, stack-based variables.
+• -O2: Optimized register use, fewer instructions, inlining, dead-code elimination.
+• Why: -O0 prioritizes debuggability; -O2 optimizes for performance.
+4Task 9: Inline Assembly Basics
+Question: Write a C function that returns the cycle counter by reading CSR 0xC00
+using inline asm; explain each constraint.
+Method:
+1 static inline uint32_t rdcycle(void) {
+2 uint32_t c;
+3 __asm__ volatile ("csrr %0, cycle" : "=r"(c));
+4 return c;
+5 }
+Constraints:
+• "=r"(c): Write-only general-purpose register for output.
+• volatile: Prevents compiler optimization of the instruction.
+Task 10: Memory-Mapped I/O Demo
+Question: Show a bare-metal C snippet to toggle a GPIO register located at 0x10012000.
+How do I prevent the compiler from optimising the store away?
+Method:
+1 volatile uint32_t *gpio = (uint32_t*)0x10012000;
+2 *gpio = 0x1; // Toggle GPIO
+Volatile: Prevents the compiler from optimizing away the store, ensuring hardware
+interaction.
+Task 11: Linker Script 101
+Question: Provide a minimal linker script that places .text at 0x00000000 and .data
+at 0x10000000 for RV32IMC.
+Method:
+1 /* link.ld */
+2 ENTRY(_start)
+3 SECTIONS {
+4 .text 0x00000000 : { *(.text*) }
+5 .data 0x10000000 : { *(.data*) }
+6 }
+Explanation: .text in Flash (0x0), .data in SRAM (0x10000000) for memory mapping.
+Task 12: Start-up Code & crt0
+Question: What does crt0.S typically do in a bare-metal RISC-V program and where
+do I get one?
+5Answer:
+• Actions: Sets stack pointer, zeroes .bss, copies .data, calls main, loops infinitely.
+• Source: Use newlib or device-specific examples (e.g., SiFive, RISC-V repositories).
+Task 13: Interrupt Primer
+Question: Demonstrate how to enable the machine-timer interrupt (MTIP) and write
+a simple handler in C/asm.
+Method:
+1 void __attribute__((interrupt)) timer_handler(void) {
+2 // Clear MTIP
+3 volatile uint32_t *mtimecmp = (uint32_t*)0x02004000;
+4 *mtimecmp += 1000000; // Increment timer compare
+5 }
+6 void enable_mtip(void) {
+7 volatile uint32_t *mie = (uint32_t*)0x0C002000;
+8 *mie |= (1 << 7); // Enable MTIP
+9 }
+Steps: Write to mtimecmp, set mie, handle interrupt.
+Task 14: rv32imac vs rv32imc – What’s the “A”?
+Question: Explain the ‘A’ (atomic) extension in rv32imac. What instructions are added
+and why are they useful?
+Answer:
+• Instructions:
+– lr.w, sc.w: Load-Reserved/Store-Conditional for atomic read-modify-write.
+– amoadd.w, amoswap.w, etc.: Atomic memory operations.
+• Usefulness: Enables lock-free data structures, synchronization in multi-core systems.
+Task 15: Atomic Test Program
+Question: Provide a two-thread mutex example (pseudo-threads in main) using lr/sc
+on RV32.
+Method:
+1 volatile int lock = 0;
+2 void acquire_lock() {
+3 int fail;
+4 do {
+5 __asm__ volatile (
+66 "lr.w t0, (%1)\n"
+7 "bnez t0, 1f\n"
+8 "li t1, 1\n"
+9 "sc.w %0, t1, (%1)\n"
+10 "1:" : "=r"(fail) : "r"(&lock) : "t0", "t1");
+11 } while (fail);
+12 }
+Explanation: Simulates two threads using lr.w/sc.w for a spinlock.
+Task 16: Using Newlib printf Without an OS
+Question: How do I retarget _write so that printf sends bytes to my memory-mapped
+UART?
+Answer:
+1 #define UART_TX 0x10000000
+2 #define UART_STATUS 0x10000005
+3 #define TX_READY (1 << 5)
+4 int _write(int file, char *ptr, int len) {
+5 if (file != 1) return -1;
+6 volatile char *tx = (char*)UART_TX;
+7 volatile char *status = (char*)UART_STATUS;
+8 for (int i = 0; i < len; i++) {
+9 while (!(*status & TX_READY));
+10 *tx = ptr[i];
+11 }
+12 return len;
+13 }
+Explanation: Redirects printf to UART via _write.
+Task 17: Endianness & Struct Packing
+Question: Is RV32 little-endian by default? Show me how to verify byte ordering with
+a union trick in C.
+Method:
+1 #include <stdio.h>
+2 union endian_test {
+3 uint32_t word;
+4 uint8_t bytes[4];
+5 };
+6 int main() {
+7 union endian_test test;
+8 test.word = 0x01020304;
+9 printf("Byte 0: 0x%02x\n", test.bytes[0]);
+10 printf("Byte 1: 0x%02x\n", test.bytes[1]);
+11 printf("Byte 2: 0x%02x\n", test.bytes[2]);
+712 printf("Byte 3: 0x%02x\n", test.bytes[3]);
+13 printf("RV32 is %s-endian\n", test.bytes[0] == 0x04 ? "little" : "big");
+14 return 0;
+15 }
+Output: RV32 is little-endian by default (byte 0 = 0x04).
+8
